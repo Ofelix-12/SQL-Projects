@@ -1,0 +1,181 @@
+
+/*Cleaning the date column*/
+
+SELECT SaleDate, CONVERT(Date,saleDate) AS SaleDate_Converted
+    
+  FROM [SQL Portfolio projects].[dbo].[Nashvile_Housing_Data]
+
+/*Because we now want the converted dates on a particular colums, distinct from the existing one, we have to create a new column within the table.
+in order to do that, we have to ALTER TABLE and ADD the columa SaleDate_Conveted. From there, we can now UPDATE the table to have the values in the 
+column*/
+
+ALTER TABLE [SQL Portfolio projects].[dbo].[Nashvile_Housing_Data]
+ADD SaleDate_Converted Date
+
+UPDATE Nashvile_Housing_Data
+SET SaleDate_Converted = CONVERT(Date,saleDate)
+
+/*Cleaning Property Address column.Here the NULL values in this column are to be filled based on similar addresses existing within teh table. 
+For this to happen, a SELF JOIN is used and an ISNULL command to help populate the NULL Values. The table is then UPDATED to effect the new changes*/
+
+SELECT Table_a.ParcelID,Table_a.PropertyAddress, Table_b.ParcelID,Table_b.PropertyAddress, ISNULL(Table_a.PropertyAddress,Table_b.PropertyAddress)
+FROM [SQL Portfolio projects].[dbo].[Nashvile_Housing_Data] AS Table_a
+JOIN [SQL Portfolio projects].[dbo].[Nashvile_Housing_Data] AS Table_b
+ON Table_a.ParcelID = Table_b.ParcelID
+AND Table_a.[UniqueID ]<>Table_b.[UniqueID ]
+Where Table_a.PropertyAddress IS NULL
+
+UPDATE Table_a
+SET PropertyAddress = ISNULL(Table_a.PropertyAddress,Table_b.PropertyAddress)
+FROM [SQL Portfolio projects].[dbo].[Nashvile_Housing_Data] AS Table_a
+JOIN [SQL Portfolio projects].[dbo].[Nashvile_Housing_Data] AS Table_b
+ON Table_a.ParcelID = Table_b.ParcelID
+AND Table_a.[UniqueID ]<>Table_b.[UniqueID ]
+Where Table_a.PropertyAddress IS NULL
+
+/*The query below confirms that there are no more null values in the PropertyAddress Column*/
+
+SELECT PropertyAddress
+FROM [SQL Portfolio projects].[dbo].[Nashvile_Housing_Data]
+WHERE PropertyAddress IS NULL
+
+/*Breaking out the Addresses into individual columns to have separate Address, city and state. For this SUBSTRING and CHARINDEX is used*/
+
+SELECT 
+SUBSTRING(PropertyAddress,1,CHARINDEX(',',PropertyAddress)-1) AS Address
+,SUBSTRING(PropertyAddress,CHARINDEX(',',PropertyAddress)+1,LEN(PropertyAddress)) AS City
+FROM [SQL Portfolio projects].[dbo].[Nashvile_Housing_Data];
+
+/*The querries below creates new colums for the property address and the city and subsequently updating them*/
+
+ALTER TABLE [SQL Portfolio projects].[dbo].[Nashvile_Housing_Data]
+ADD PropertySplitAddress nvarchar(255);
+
+UPDATE Nashvile_Housing_Data
+SET PropertySplitAddress = SUBSTRING(PropertyAddress,1,CHARINDEX(',',PropertyAddress)-1)
+
+ALTER TABLE [SQL Portfolio projects].[dbo].[Nashvile_Housing_Data]
+ADD PropertySpitCity nvarchar(255);
+
+UPDATE Nashvile_Housing_Data
+SET PropertySpitCity = SUBSTRING(PropertyAddress,CHARINDEX(',',PropertyAddress)+1,LEN(PropertyAddress))
+
+/*The query below confirms these entries*/
+
+SELECT PropertySplitAddress, PropertySpitCity
+FROM Nashvile_Housing_Data;
+
+/*Breaking addresses or simply delimiting texts can alternatively be done using PARSENAME Command.The OwnerAddress table is used to exemplify this.
+PARSENAME only works with periods and as such the text delimiter has to be REPLACED with a period. Also, it returns values backwards
+so its important to reverse the order*/
+
+
+SELECT
+PARSENAME(REPLACE(OwnerAddress,',','.'),3) AS OwnerSpitAddress
+,PARSENAME(REPLACE(OwnerAddress,',','.'),2) AS OwnerSplitCity
+,PARSENAME(REPLACE(OwnerAddress,',','.'),1) AS OwnerSplitState
+FROM Nashvile_Housing_Data;
+
+/*Updating the table to include these columns and values*/
+
+ALTER TABLE [SQL Portfolio projects].[dbo].[Nashvile_Housing_Data]
+ADD OwnerSpitAddress nvarchar(255);
+
+UPDATE Nashvile_Housing_Data
+SET OwnerSpitAddress = PARSENAME(REPLACE(OwnerAddress,',','.'),3)
+
+ALTER TABLE [SQL Portfolio projects].[dbo].[Nashvile_Housing_Data]
+ADD OwnerSpitCity nvarchar(255);
+
+UPDATE Nashvile_Housing_Data
+SET OwnerSpitCity = PARSENAME(REPLACE(OwnerAddress,',','.'),2)
+
+ALTER TABLE [SQL Portfolio projects].[dbo].[Nashvile_Housing_Data]
+ADD OwnerSpitState nvarchar(255);
+
+UPDATE Nashvile_Housing_Data
+SET OwnerSpitState = PARSENAME(REPLACE(OwnerAddress,',','.'),1)
+
+/*The query below confirms these entries*/
+SELECT OwnerSpitAddress, OwnerSpitCity,OwnerSpitState
+FROM Nashvile_Housing_Data;
+
+
+/*The SoldAsVacant column has incosistencies. There are values with Yes, No and others have Y and N. The values on Y and N are
+to be changes to Yes and No respectively. A CASE statement is used for this*/
+
+SELECT DISTINCT(SoldAsVacant), COUNT(SoldAsVacant)
+FROM Nashvile_Housing_Data
+GROUP BY SoldAsVacant 
+ORDER BY 2 DESC
+
+SELECT SoldAsVacant,
+CASE
+   WHEN SoldAsVacant = 'Y' THEN 'Yes'
+   WHEN SoldAsVacant = 'N' THEN 'NO'
+   ELSE SoldAsVacant
+   END
+FROM Nashvile_Housing_Data;
+
+/*The column is then UPDATED to effect these changes*/
+
+UPDATE Nashvile_Housing_Data
+SET SoldAsVacant = CASE
+   WHEN SoldAsVacant = 'Y' THEN 'Yes'
+   WHEN SoldAsVacant = 'N' THEN 'NO'
+   ELSE SoldAsVacant
+   END
+
+/*The querry below confirms there are only Yes and No values in the SoldAsVacant column*/
+
+SELECT DISTINCT(SoldAsVacant), COUNT(SoldAsVacant)
+FROM Nashvile_Housing_Data
+GROUP BY SoldAsVacant 
+ORDER BY 2 
+
+/*Removing Duplicates from the data*/
+
+WITH Row_num AS (
+SELECT *,
+      ROW_NUMBER() OVER (
+	  PARTITION BY ParcelID,
+	               PropertyAddress,
+				   SalePrice,
+				   SaleDate,
+				   LegalReference
+				   ORDER BY 
+				     UniqueID) AS Row_num
+FROM  Nashvile_Housing_Data
+)
+DELETE
+FROM Row_num
+WHERE Row_num > 1
+
+SELECT *
+FROM Nashvile_Housing_Data
+
+/*Now I can ALTER TABLE by DROP COLUMN statement. I am not going to do that because that will competely erase the columns. 
+I am however going to export the data that i need into an excel spreadsheet for further analysis*/
+
+SELECT  UniqueID
+       ,ParcelID
+	   ,LandUse
+	   ,SalePrice
+	   ,SoldAsVacant
+	   ,OwnerName
+	   ,Acreage
+	   ,TaxDistrict
+	   ,LandValue
+	   ,BuildingValue
+	   ,TotalValue
+	   ,YearBuilt
+	   ,Bedrooms
+	   ,FullBath
+	   ,HalfBath
+	   ,SaleDate_Converted
+	   ,PropertySplitAddress
+	   ,PropertySpitCity
+	   ,OwnerSpitAddress
+	   ,OwnerSpitCity
+	   ,OwnerSpitState
+FROM Nashvile_Housing_Data;
