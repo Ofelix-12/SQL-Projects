@@ -1,0 +1,50 @@
+/*PROJECT CASE STUDY*/
+/*The management wants to understand the conditions of the sales activities and gain insights into the various trends 
+happening in the Bike Sales volume between 2016 and 2018. They also want to know the revenues per region, per store and per product
+category and per brand. the lists of sales representatives and customers are also needed. All these infornation are stored in different tables 
+and for that reason, these tables are going to be joined in order to gather the necessary data from these tables for the analysis.*/
+
+/*A SQL script that generates a dataset consisting of the order id, customers first and last names, the customers city and state, 
+the order date, sales volume, revenue, product name, product category, brand name, store name, and sales representatives. 
+These fields are scattered across separate but related tables in the bike stores database. A series of table joins is used to generate the 
+dataset*/
+
+SELECT 
+	Orders.order_id,
+	CONCAT(Customers.first_name, ' ',Customers.last_name) AS Customers,
+	Customers.city,
+	Customers.state,
+	Orders.order_date,
+	/*Management also wants to know the sales volume and the total revenues generated. These fields must be in function form.Quantity 
+	and list_price are in the sales.order_items table*/
+	SUM(Items.quantity) AS Total_Units,
+	SUM(Items.quantity*Items.list_price) AS Revenue,
+	Product.product_name,
+	Categories.category_name,
+	Stores.store_name,
+	CONCAT(Staff.first_name, ' ',Staff.last_name) AS Sales_representative
+FROM sales.orders AS Orders
+JOIN sales.customers AS Customers
+ON Orders.customer_id = Customers.customer_id
+JOIN sales.order_items AS Items
+ON Orders.order_id = Items.order_id
+JOIN production.products AS Product
+ON Items.product_id = Product.product_id
+JOIN production.categories AS Categories
+ON Product.category_id = Categories.category_id
+JOIN sales.stores AS Stores
+ON Orders.store_id = Stores.store_id
+JOIN sales.staffs AS Staff
+ON Orders.staff_id = Staff.staff_id
+/*Because there are aggregate functions in the querry, the other fields needs to be grouped in order for the
+script to work*/
+GROUP BY
+	Orders.order_id,
+	CONCAT(Customers.first_name, ' ',Customers.last_name),
+	Customers.city,
+	Customers.state,
+	Orders.order_date,
+	Product.product_name,
+	Categories.category_name,
+	Stores.store_name,
+	CONCAT(Staff.first_name, ' ',Staff.last_name)
